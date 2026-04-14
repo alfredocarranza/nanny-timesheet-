@@ -303,6 +303,56 @@ body {
   color: var(--accent);
   background: #FFF5EE;
 }
+
+/* Custom date range */
+.date-range {
+  display: none;
+  gap: 10px;
+  margin-bottom: 16px;
+  animation: fadeIn 0.2s ease;
+}
+.date-range.active { display: flex; }
+.date-range .form-group { flex: 1; margin-bottom: 0; }
+.date-range input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-appearance: none;
+}
+.date-range input:focus { outline: none; border-color: var(--accent); }
+
+/* Amount due banner */
+.amount-due {
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+  color: white;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 16px rgba(232, 131, 90, 0.3);
+}
+.amount-due .due-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.85;
+  font-weight: 600;
+}
+.amount-due .due-amount {
+  font-size: 36px;
+  font-weight: 800;
+  margin-top: 4px;
+  letter-spacing: -0.5px;
+}
+.amount-due .due-detail {
+  font-size: 13px;
+  opacity: 0.8;
+  margin-top: 6px;
+}
 </style>
 </head>
 <body>
@@ -362,6 +412,22 @@ body {
     <button class="period-btn active" data-period="week" onclick="setPeriod('week')">This Week</button>
     <button class="period-btn" data-period="month" onclick="setPeriod('month')">This Month</button>
     <button class="period-btn" data-period="all" onclick="setPeriod('all')">All Time</button>
+    <button class="period-btn" data-period="custom" onclick="setPeriod('custom')">Custom</button>
+  </div>
+  <div class="date-range" id="date-range">
+    <div class="form-group">
+      <label>From</label>
+      <input type="date" id="range-start" onchange="renderSummary()">
+    </div>
+    <div class="form-group">
+      <label>To</label>
+      <input type="date" id="range-end" onchange="renderSummary()">
+    </div>
+  </div>
+  <div class="amount-due" id="amount-due">
+    <div class="due-label">Amount Due</div>
+    <div class="due-amount" id="due-amount">$0.00</div>
+    <div class="due-detail" id="due-detail">0 entries · 0h 0m</div>
   </div>
   <div class="stats-grid">
     <div class="stat-card">
@@ -637,12 +703,14 @@ function closeDeleteModal() {
 function setPeriod(p) {
   currentPeriod = p;
   document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === p));
+  document.getElementById('date-range').classList.toggle('active', p === 'custom');
   renderSummary();
 }
 
 function renderSummary() {
   const now = new Date();
   let filtered = entries;
+  let periodLabel = '';
 
   if (currentPeriod === 'week') {
     const day = now.getDay();
@@ -651,9 +719,25 @@ function renderSummary() {
     start.setHours(0,0,0,0);
     const startStr = formatDateLocal(start);
     filtered = entries.filter(e => e.date >= startStr);
+    periodLabel = 'this week';
   } else if (currentPeriod === 'month') {
     const startStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-01';
     filtered = entries.filter(e => e.date >= startStr);
+    periodLabel = 'this month';
+  } else if (currentPeriod === 'custom') {
+    const rangeStart = document.getElementById('range-start').value;
+    const rangeEnd = document.getElementById('range-end').value;
+    if (rangeStart && rangeEnd) {
+      filtered = entries.filter(e => e.date >= rangeStart && e.date <= rangeEnd);
+      const startDate = new Date(rangeStart + 'T00:00:00');
+      const endDate = new Date(rangeEnd + 'T00:00:00');
+      periodLabel = startDate.toLocaleDateString('en-US', {month:'short',day:'numeric'}) + ' – ' + endDate.toLocaleDateString('en-US', {month:'short',day:'numeric'});
+    } else {
+      filtered = [];
+      periodLabel = 'select dates';
+    }
+  } else {
+    periodLabel = 'all time';
   }
 
   const totalHours = filtered.reduce((s, e) => s + e.hours, 0);
@@ -663,6 +747,10 @@ function renderSummary() {
 
   const h = Math.floor(totalHours);
   const m = Math.round((totalHours - h) * 60);
+
+  // Update amount due banner
+  document.getElementById('due-amount').textContent = `$${totalPay.toFixed(2)}`;
+  document.getElementById('due-detail').textContent = `${filtered.length} entr${filtered.length === 1 ? 'y' : 'ies'} · ${h}h ${m}m · ${periodLabel}`;
 
   document.getElementById('sum-hours').textContent = `${h}h ${m}m`;
   document.getElementById('sum-pay').textContent = `$${totalPay.toFixed(2)}`;
